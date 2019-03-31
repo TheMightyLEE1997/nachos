@@ -1,0 +1,9 @@
+#!/bin/sh
+
+NACHOS_HOME=$(dirname "$(realpath $0)")
+
+if ! echo "$PATH" | /bin/grep -Eq "(^|:)$NACHOS_HOME/bin($|:)"; then
+	PATH="$PATH:$NACHOS_HOME/bin"
+	PROMPT_DIRTRIM=3
+	PS1="(nachos) $PS1"
+fi
