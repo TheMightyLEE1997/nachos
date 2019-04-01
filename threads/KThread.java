@@ -295,6 +295,7 @@ public class KThread {
 			waitListHead = currentThread;
 			sleep();
 		}
+		Lib.assertTrue(status == statusFinished);
 		Machine.interrupt().restore(intStatus);
     }
 
@@ -431,19 +432,39 @@ public class KThread {
     		System.out.println(KThread.currentThread().name + " finished joining");
     	}
     }
-
-    /**
-     * Tests whether this module is working.
-     */
-    public static void selfTest() {
-		Lib.debug(dbgThread, "Enter KThread.selfTest");
-		
-		System.out.println("Ping Test:");
+    
+    private static class AlarmTest implements Runnable {
+    	private long s, t;
+    	
+    	AlarmTest(long s, long t) {
+    		this.s = s;
+    		this.t = t;
+    	}
+	
+    	public void run() {
+    		long wakeTime = Machine.timer().getTime() + s;
+    		ThreadedKernel.alarm.waitUntil(s);
+    		long err = Machine.timer().getTime() - wakeTime;
+    		System.out.println("delay: " + ((Long) err).toString());
+    		Lib.assertTrue(err >= 0);
+    		
+    		wakeTime = Machine.timer().getTime() + t;
+    		ThreadedKernel.alarm.waitUntil(t);
+    		err = Machine.timer().getTime() - wakeTime;
+    		System.out.println("delay: " + ((Long) err).toString());
+    		Lib.assertTrue(err >= 0);
+    	}
+    }
+    
+    private static void selfTestPing() {
+    	System.out.println("Ping Test:");
 		
 		new KThread(new PingTest(1)).setName("forked thread").fork();
 		new PingTest(0).run();
-		
-		System.out.println("Join Test:");
+    }
+    
+    private static void selfTestJoin() {
+    	System.out.println("Join Test:");
 		
 		final int N = 100;
 		final int D = 10;
@@ -471,6 +492,38 @@ public class KThread {
 		th[N - 1].join();
 		
 		System.out.println("joined");
+    }
+    
+    private static void selfTestAlarm() {
+    	System.out.println("Alarm Test");
+		
+    	final int N = 7;
+    	int[] ss = new int[] { 0,  0,  15,  15,  50,  100, 100 };
+    	int[] ts = new int[] { 20, 20, 100, 100, 200, 1000, 1000 };
+		KThread[] th = new KThread[N];
+		
+		for (int i = 0; i < N; i++) {
+			th[i] = new KThread(new AlarmTest(ss[i] * 100, ts[i] * 100));
+		}
+		for (int i = 0; i < N; i++) {
+			th[i].fork();
+		}
+		for (int i = 0; i < N; i++) {
+			th[i].join();
+		}
+		
+		System.out.println("Alarm Test Passed");
+    }
+
+    /**
+     * Tests whether this module is working.
+     */
+    public static void selfTest() {
+		Lib.debug(dbgThread, "Enter KThread.selfTest");
+		
+		selfTestPing();
+		selfTestJoin();
+		selfTestAlarm();
     }
 
     private static final char dbgThread = 't';
