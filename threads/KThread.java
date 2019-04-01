@@ -1,5 +1,7 @@
 package nachos.threads;
 
+import java.util.*;
+
 import nachos.machine.*;
 
 /**
@@ -182,19 +184,29 @@ public class KThread {
      * delete this thread.
      */
     public static void finish() {
-	Lib.debug(dbgThread, "Finishing thread: " + currentThread.toString());
+		Lib.debug(dbgThread, "Finishing thread: " + currentThread.toString());
+		
+		Machine.interrupt().disable();
 	
-	Machine.interrupt().disable();
-
-	Machine.autoGrader().finishingCurrentThread();
-
-	Lib.assertTrue(toBeDestroyed == null);
-	toBeDestroyed = currentThread;
-
-
-	currentThread.status = statusFinished;
+		Machine.autoGrader().finishingCurrentThread();
 	
-	sleep();
+		Lib.assertTrue(toBeDestroyed == null);
+		toBeDestroyed = currentThread;
+	
+	
+		currentThread.status = statusFinished;
+		
+		KThread p = currentThread.waitListHead;
+		while (p != null) {
+			Lib.assertTrue(p.status == statusBlocked);
+			p.ready();
+			KThread q = p.waitListNext;
+			p.waitListNext = null;
+			p = q;
+		}
+		currentThread.waitListHead = null;
+		
+		sleep();
     }
 
     /**
@@ -273,10 +285,17 @@ public class KThread {
      * thread.
      */
     public void join() {
-	Lib.debug(dbgThread, "Joining to thread: " + toString());
+    	Lib.debug(dbgThread, "Joining to thread: " + toString());
 
-	Lib.assertTrue(this != currentThread);
-
+		Lib.assertTrue(this != currentThread);
+		
+		boolean intStatus = Machine.interrupt().disable();
+		if (status != statusFinished) {
+			currentThread.waitListNext = waitListHead;
+			waitListHead = currentThread;
+			sleep();
+		}
+		Machine.interrupt().restore(intStatus);
     }
 
     /**
@@ -377,34 +396,81 @@ public class KThread {
      * need to do anything here.
      */
     protected void saveState() {
-	Lib.assertTrue(Machine.interrupt().disabled());
-	Lib.assertTrue(this == currentThread);
+    	Lib.assertTrue(Machine.interrupt().disabled());
+    	Lib.assertTrue(this == currentThread);
     }
 
     private static class PingTest implements Runnable {
-	PingTest(int which) {
-	    this.which = which;
-	}
+    	PingTest(int which) {
+    		this.which = which;
+    	}
 	
-	public void run() {
-	    for (int i=0; i<5; i++) {
-		System.out.println("*** thread " + which + " looped "
-				   + i + " times");
-		currentThread.yield();
-	    }
-	}
+    	public void run() {
+    		for (int i=0; i<5; i++) {
+    			System.out.println("*** thread " + which + " looped "
+    					+ i + " times");
+    			KThread.yield();
+    		}
+    	}
 
-	private int which;
+    	private int which;
+    }
+    
+    private static class JoinTest implements Runnable {
+    	private List<KThread> threadToJoin;
+    	
+    	JoinTest(List<KThread> threadToJoin) {
+    		this.threadToJoin = threadToJoin;
+    	}
+	
+    	public void run() {
+    		for (KThread th : threadToJoin) {
+    			th.join();
+    		}
+    		
+    		System.out.println(KThread.currentThread().name + " finished joining");
+    	}
     }
 
     /**
      * Tests whether this module is working.
      */
     public static void selfTest() {
-	Lib.debug(dbgThread, "Enter KThread.selfTest");
-	
-	new KThread(new PingTest(1)).setName("forked thread").fork();
-	new PingTest(0).run();
+		Lib.debug(dbgThread, "Enter KThread.selfTest");
+		
+		System.out.println("Ping Test:");
+		
+		new KThread(new PingTest(1)).setName("forked thread").fork();
+		new PingTest(0).run();
+		
+		System.out.println("Join Test:");
+		
+		final int N = 100;
+		final int D = 10;
+		KThread[] th = new KThread[N];
+		Random joinRand = new Random(233333333333333l);
+		for (int i = 0; i < N; i++) {
+			Set<Integer> threadIDs = new HashSet<Integer>();
+			if (i > 0) {
+				threadIDs.add(i - 1);
+			}
+			for (int j = 0; j < i && j < D; j++) {
+				threadIDs.add(joinRand.nextInt(i));
+			}
+			List<KThread> threadToJoin = new ArrayList<KThread>();
+			for (Integer j : threadIDs) {
+				threadToJoin.add(th[j]);
+			}
+			th[i] = new KThread(new JoinTest(threadToJoin)).setName("joinTest thread #" + ((Integer) i).toString());
+		}
+		
+		for (int i = 0; i < N; i++) {
+			th[i].fork();
+		}
+		
+		th[N - 1].join();
+		
+		System.out.println("joined");
     }
 
     private static final char dbgThread = 't';
@@ -431,9 +497,11 @@ public class KThread {
     private String name = "(unnamed thread)";
     private Runnable target;
     private TCB tcb;
+    private KThread waitListHead = null;
+    private KThread waitListNext = null;
 
     /**
-     * Unique identifer for this thread. Used to deterministically compare
+     * Unique identifer for this thread. UthreadToWaitsed to deterministically compare
      * threads.
      */
     private int id = numCreated++;
