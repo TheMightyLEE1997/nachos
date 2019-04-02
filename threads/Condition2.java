@@ -140,15 +140,15 @@ public class Condition2 {
         int num = 7;
         int times = 3;
         System.out.println("Condition2 Test (Dining Philosopher):");
-        ArrayList<KThread> dps = new ArrayList<KThread>();
+        ArrayList<KThread> ths = new ArrayList<KThread>();
         for (int i = 0; i < num; i ++) {
             KThread thread = new KThread(new DiningPhilosopher(num, times, i)).setName("dp_"+i);
             thread.fork();
-            dps.add(thread);
+            ths.add(thread);
         }
         for (int i = 0; i < num; i ++)
-            dps.get(i).join();
-        System.out.println("Condition2 Test Simple Passed");
+            ths.get(i).join();
+        System.out.println("Condition2 Test (Dining Philosopher) Passed.");
     }
 
     private Lock conditionLock;

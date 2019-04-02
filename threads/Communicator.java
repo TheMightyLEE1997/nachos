@@ -2,6 +2,10 @@ package nachos.threads;
 
 import nachos.machine.*;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.Collections;
+
 /**
  * A <i>communicator</i> allows threads to synchronously exchange 32-bit
  * messages. Multiple threads can be waiting to <i>speak</i>,
@@ -14,6 +18,12 @@ public class Communicator {
      * Allocate a new communicator.
      */
     public Communicator() {
+        lock = new Lock();
+        condListen = new Condition2(lock);
+        condSpeak = new Condition2(lock);
+        messageQueue = new LinkedList<Integer>();
+        countListen = 0;
+        countSpeak = 0;
     }
 
     /**
@@ -27,6 +37,20 @@ public class Communicator {
      * @param	word	the integer to transfer.
      */
     public void speak(int word) {
+        lock.acquire();
+        if (countListen > 0) {
+            Lib.assertTrue(countSpeak == 0);
+            messageQueue.add((Integer)word);
+            condListen.wake();
+            countListen --;
+        }
+        else {
+            countSpeak ++;
+            condSpeak.sleep();
+            messageQueue.add((Integer)word);
+            condListen.wake();
+        }
+        lock.release();
     }
 
     /**
@@ -36,6 +60,97 @@ public class Communicator {
      * @return	the integer transferred.
      */    
     public int listen() {
-	return 0;
+        lock.acquire();
+        int ret = 0;
+        if (countSpeak > 0) {
+            Lib.assertTrue(countListen == 0);
+            condSpeak.wake();
+            countSpeak --;
+        }
+        else {
+            countListen ++;
+        }
+        condListen.sleep();
+        ret = (int)messageQueue.removeFirst();
+        lock.release();
+        return ret;
     }
+
+    /**
+     * Lister class for testing.
+     */
+    private static class Listener implements Runnable {
+        Listener(Communicator comm, int id) {
+            this.comm = comm;
+            this.id = id;
+        }
+
+        public void run() {
+            System.out.println("ID " + id + " listener ready to listen.");
+            int word = comm.listen();
+            System.out.println("ID " + id + " listener gets word " + word + ".");
+        }
+
+        private Communicator comm;
+        private int id;
+    }
+    
+    /**
+     * Speaker class for testing.
+     */
+    private static class Speaker implements Runnable {
+        Speaker(Communicator comm, int id) {
+            this.comm = comm;
+            this.id = id;
+        }
+
+        public void run() {
+            System.out.println("ID " + id + " speaker ready to speak.");
+            comm.speak(id);
+            System.out.println("ID " + id + " speaker speaks.");
+        }
+
+        private Communicator comm;
+        private int id;
+    }
+
+    /**
+     * Test if this module is working.
+     */
+    public static void selfTest() {
+        System.out.println("Communicator Test:");
+        int num = 10;
+        int maxWait = 20;
+        ArrayList<Integer> people = new ArrayList<Integer>();
+        for (int i = 0; i < num; i ++) {
+            people.add(0);
+            people.add(1);
+        }
+        Collections.shuffle(people);
+        Communicator comm = new Communicator();
+        ArrayList<KThread> ths = new ArrayList<KThread>();
+        KThread thread;
+        //Random rand = new Random(666666666666666l);
+        for (int i = 0; i < num * 2; i ++) {
+            if (people.get(i) == 0)
+                thread = new KThread(new Listener(comm, i)).setName("listener"+i);
+            else
+                thread = new KThread(new Speaker(comm, i)).setName("speaker"+i);
+            thread.fork();
+            ths.add(thread);
+            //ThreadedKernel.alarm.waitUntil(rand.nextInt(maxWait));
+            ThreadedKernel.alarm.waitUntil(maxWait);
+        }
+        for (int i = 0; i < num * 2; i ++)
+            ths.get(i).join();
+        System.out.println("Communicator Test Passed.");
+    }
+
+
+    private Lock lock;
+    private Condition2 condListen;
+    private Condition2 condSpeak;
+    private LinkedList<Integer> messageQueue;
+    private int countListen;
+    private int countSpeak;
 }
