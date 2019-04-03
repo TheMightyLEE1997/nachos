@@ -2,9 +2,7 @@ package nachos.threads;
 
 import nachos.machine.*;
 
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.Collections;
+import java.util.*;
 
 /**
  * A <i>communicator</i> allows threads to synchronously exchange 32-bit
@@ -21,9 +19,10 @@ public class Communicator {
         lock = new Lock();
         condListen = new Condition2(lock);
         condSpeak = new Condition2(lock);
-        messageQueue = new LinkedList<Integer>();
+        message = 0;
         countListen = 0;
         countSpeak = 0;
+        ready = false;
     }
 
     /**
@@ -38,18 +37,18 @@ public class Communicator {
      */
     public void speak(int word) {
         lock.acquire();
-        if (countListen > 0) {
-            Lib.assertTrue(countSpeak == 0);
-            messageQueue.add((Integer)word);
-            condListen.wake();
-            countListen --;
+        countSpeak ++;
+        if (countListen == 0 || ready) {
+            condSpeak.sleep();
+            Lib.assertTrue(ready);
         }
         else {
-            countSpeak ++;
-            condSpeak.sleep();
-            messageQueue.add((Integer)word);
-            condListen.wake();
+            Lib.assertTrue(countSpeak == 1);
+            ready = true;
         }
+        message = word;
+        countSpeak --;
+        condListen.wake();
         lock.release();
     }
 
@@ -61,19 +60,33 @@ public class Communicator {
      */    
     public int listen() {
         lock.acquire();
+        countListen ++;
         int ret = 0;
-        if (countSpeak > 0) {
-            Lib.assertTrue(countListen == 0);
+        if (countSpeak > 0 && countListen == 1) {
+            Lib.assertTrue(!ready);
+            ready = true;
             condSpeak.wake();
-            countSpeak --;
-        }
-        else {
-            countListen ++;
         }
         condListen.sleep();
-        ret = (int)messageQueue.removeFirst();
+        Lib.assertTrue(ready);
+        ret = message;
+        countListen --;
+        if (countSpeak > 0 && countListen > 0)
+            condSpeak.wake();
+        else
+            ready = false;
         lock.release();
         return ret;
+    }
+
+
+    /**
+     * Print current status of the communicator.
+     */
+    public void print() {
+        boolean intStatus = Machine.interrupt().disable();
+        System.out.println("Status: countListen = "+countListen+", countSpeak = "+countSpeak+", message = "+message+", ready = "+ready+".");
+        Machine.interrupt().restore(intStatus);
     }
 
     /**
@@ -87,8 +100,10 @@ public class Communicator {
 
         public void run() {
             System.out.println("ID " + id + " listener ready to listen.");
+            //comm.print();
             int word = comm.listen();
             System.out.println("ID " + id + " listener gets word " + word + ".");
+            //comm.print();
         }
 
         private Communicator comm;
@@ -106,8 +121,10 @@ public class Communicator {
 
         public void run() {
             System.out.println("ID " + id + " speaker ready to speak.");
+            //comm.print();
             comm.speak(id);
             System.out.println("ID " + id + " speaker speaks.");
+            //comm.print();
         }
 
         private Communicator comm;
@@ -130,7 +147,7 @@ public class Communicator {
         Communicator comm = new Communicator();
         ArrayList<KThread> ths = new ArrayList<KThread>();
         KThread thread;
-        //Random rand = new Random(666666666666666l);
+        Random rand = new Random(666666666666666l);
         for (int i = 0; i < num * 2; i ++) {
             if (people.get(i) == 0)
                 thread = new KThread(new Listener(comm, i)).setName("listener"+i);
@@ -139,7 +156,7 @@ public class Communicator {
             thread.fork();
             ths.add(thread);
             //ThreadedKernel.alarm.waitUntil(rand.nextInt(maxWait));
-            ThreadedKernel.alarm.waitUntil(maxWait);
+            //ThreadedKernel.alarm.waitUntil(maxWait);
         }
         for (int i = 0; i < num * 2; i ++)
             ths.get(i).join();
@@ -150,7 +167,8 @@ public class Communicator {
     private Lock lock;
     private Condition2 condListen;
     private Condition2 condSpeak;
-    private LinkedList<Integer> messageQueue;
+    private int message;
     private int countListen;
     private int countSpeak;
+    private boolean ready;
 }
