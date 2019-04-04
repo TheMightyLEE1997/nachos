@@ -1,6 +1,6 @@
 #!/bin/sh
 
-NACHOS_HOME=$(dirname "$(realpath $0)")
+NACHOS_HOME=$(dirname "$(realpath $BASH_SOURCE)")
 
 if ! echo "$PATH" | /bin/grep -Eq "(^|:)$NACHOS_HOME/bin($|:)"; then
 	PATH="$PATH:$NACHOS_HOME/bin"
