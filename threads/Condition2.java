@@ -118,9 +118,9 @@ public class Condition2 {
 
         public void run() {
             for (int i = 0; i < times; i ++) {
-                ThreadedKernel.alarm.waitUntil(id + 1);
+                ThreadedKernel.alarm.waitUntil(200 * (id + 1));
                 pickup(id);
-                ThreadedKernel.alarm.waitUntil(5);
+                ThreadedKernel.alarm.waitUntil(200 * 5);
                 putdown(id);
             }
         }

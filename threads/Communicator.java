@@ -137,7 +137,7 @@ public class Communicator {
     public static void selfTest() {
         System.out.println("Communicator Test:");
         int num = 10;
-        int maxWait = 20;
+        int maxWait = 200;
         ArrayList<Integer> people = new ArrayList<Integer>();
         for (int i = 0; i < num; i ++) {
             people.add(0);
@@ -155,8 +155,9 @@ public class Communicator {
                 thread = new KThread(new Speaker(comm, i)).setName("speaker"+i);
             thread.fork();
             ths.add(thread);
-            //ThreadedKernel.alarm.waitUntil(rand.nextInt(maxWait));
-            //ThreadedKernel.alarm.waitUntil(maxWait);
+            if (rand.nextInt(1000) > 400)
+                KThread.yield();
+                //ThreadedKernel.alarm.waitUntil(maxWait);
         }
         for (int i = 0; i < num * 2; i ++)
             ths.get(i).join();
