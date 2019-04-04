@@ -151,7 +151,9 @@ public class PriorityScheduler extends Scheduler {
             int peek = 0;
             Iterator<PriorityQueue> iter = holder.holdingQueues.iterator();
             while (iter.hasNext()) {
-                peek = iter.next().pickNextThread().getEffectivePriority();
+                ThreadState next = iter.next().pickNextThread();
+                if (next != null)
+                    peek = next.getEffectivePriority();
                 if (peek > eff)
                     eff = peek;
             }
@@ -176,6 +178,8 @@ public class PriorityScheduler extends Scheduler {
 	 *		return.
 	 */
 	protected ThreadState pickNextThread() {
+	    if (stablePQ.isEmpty())
+	        return null;
         ThreadState ret = stablePQ.first();
 	    return ret;
 	}
@@ -262,7 +266,7 @@ public class PriorityScheduler extends Scheduler {
 	public void setPriority(int priority) {
 	    if (this.priority == priority)
 	        return;
-        else if (priority > this.priority) {
+        else if (priority > this.effectivePriority) {
 	        this.priority = priority;
 	        setEffectivePriority(priority);
         }
@@ -272,7 +276,9 @@ public class PriorityScheduler extends Scheduler {
             int peek = 0;
             Iterator<PriorityQueue> iter = holdingQueues.iterator();
             while (iter.hasNext()) {
-                peek = iter.next().pickNextThread().getEffectivePriority();
+                ThreadState next = iter.next().pickNextThread();
+                if (next != null)
+                    peek = next.getEffectivePriority();
                 if (peek > eff)
                     eff = peek;
             }
