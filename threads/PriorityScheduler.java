@@ -428,16 +428,42 @@ public class PriorityScheduler extends Scheduler {
         System.out.println("Priority Scheduling Test 2 Passed.\n");
    
         //********* Test 3!
-        System.out.println("Priority Scheduling Test 3 (testing if priorities are donated at joins, simple test with 5 threads):)");
+        /**
+         * A join graph with dependence as follows:
+         * (id0, 1) <--- (id1, 1) <--- (id2, 1) <--- (id3, 4)
+         *     ^             ^
+         *     |             |
+         * (id4, 3)      (id5, 2)
+         * Threads should finish in the same order as their ids.
+         */
+        System.out.println("Priority Scheduling Test 3 (testing if priorities are donated at joins with transitivity, simple test with 6 threads, threads should finish in the same order as their ids):)");
+        KThread id0 = new KThread(new ThreadJoin(0, null)).setName("0");
+        KThread id1 = new KThread(new ThreadJoin(1, id0)).setName("1");
+        KThread id2 = new KThread(new ThreadJoin(2, id1)).setName("2");
+        KThread id3 = new KThread(new ThreadJoin(3, id2)).setName("3");
+        KThread id4 = new KThread(new ThreadJoin(4, id0)).setName("4");
+        KThread id5 = new KThread(new ThreadJoin(5, id1)).setName("5");
+        intStatus = Machine.interrupt().disable();
+        ThreadedKernel.scheduler.setPriority(id0, 1); 
+        ThreadedKernel.scheduler.setPriority(id1, 1); 
+        ThreadedKernel.scheduler.setPriority(id2, 1); 
+        ThreadedKernel.scheduler.setPriority(id3, 4); 
+        ThreadedKernel.scheduler.setPriority(id4, 3); 
+        ThreadedKernel.scheduler.setPriority(id5, 2); 
+        Machine.interrupt().restore(intStatus);
+        id5.fork();
+        id4.fork();
+        id3.fork();
+        id2.fork();
+        id1.fork();
+        id0.fork();
+        id5.join();
         System.out.println("Priority Scheduling Test 3 Passed.\n");
 
         //********* Test 4!
-        System.out.println("Priority Scheduling Test 4 (testing if priority donation is transitive, simple test with 3 locks and joins):");
-        System.out.println("Priority Scheduling Test 4 Passed.\n");
+        System.out.println("Priority Scheduling Test 4 (a complicated test with 5 locks, random joins, and random thread priority):");
 
-        //********* Test 5!
-        System.out.println("Priority Scheduling Test 5 (a complicated test with 5 locks, random joins, and random thread priority):");
-        System.out.println("Priority Scheduling Test 5 Passed.\n");
+        System.out.println("Priority Scheduling Test 4 Passed.\n");
     }
 
 
@@ -564,5 +590,32 @@ public class PriorityScheduler extends Scheduler {
         private Lock Dragonglass;
     } 
 
+
+    /** 
+     * Runnable for a thread that joins another thread.
+     * Used for Test 3.
+     */
+    private static class ThreadJoin implements Runnable {
+        ThreadJoin(int id, KThread toJoin) {
+            this.id = id;
+            this.toJoin = toJoin;
+        }
+
+        public void run() {
+            if (toJoin == null) {
+                System.out.println("Thread ID "+id+" starts.");
+                ThreadedKernel.alarm.waitUntil(500);
+            }
+            else {
+                System.out.println("Thread ID "+id+" joins Thread ID "+toJoin.getName()+".");
+                toJoin.join();
+            }
+            System.out.println("Thread ID "+id+" has priority "+((ThreadState)KThread.currentThread().schedulingState).getPriority()+" and effective priority "+((ThreadState)KThread.currentThread().schedulingState).getEffectivePriority()+".");
+            System.out.println("Thread ID "+id+" finishes.");
+        }
+
+        private int id;
+        private KThread toJoin;
+    }
 
 }

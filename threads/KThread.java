@@ -195,7 +195,17 @@ public class KThread {
 	
 	
 		currentThread.status = statusFinished;
-		
+
+		if (currentThread.joinWaitQueue != null) {
+		    KThread p = currentThread.joinWaitQueue.nextThread();
+		    while (p != null) {
+                Lib.assertTrue(p.status == statusBlocked);
+                p.ready();
+                p = currentThread.joinWaitQueue.nextThread();
+            }
+        }
+		/*
+		// old implementation of join.
 		KThread p = currentThread.waitListHead;
 		while (p != null) {
 			Lib.assertTrue(p.status == statusBlocked);
@@ -205,7 +215,7 @@ public class KThread {
 			p = q;
 		}
 		currentThread.waitListHead = null;
-		
+		*/
 		sleep();
     }
 
@@ -284,6 +294,25 @@ public class KThread {
      * call is not guaranteed to return. This thread must not be the current
      * thread.
      */
+    // current implementation uses ThreadQueue to be compatible with priority scheduler.
+    public void join() {
+        Lib.debug(dbgThread, "Joining to thread: " + toString());
+        Lib.assertTrue(this != currentThread);
+		boolean intStatus = Machine.interrupt().disable();
+		if (status != statusFinished) {
+            if (joinWaitQueue == null) {
+                joinWaitQueue = ThreadedKernel.scheduler.newThreadQueue(true);
+                joinWaitQueue.acquire(this);
+            }
+			joinWaitQueue.waitForAccess(currentThread);
+			sleep();
+		}
+		Lib.assertTrue(status == statusFinished);
+		Machine.interrupt().restore(intStatus);
+    }
+
+    /*
+    // old implementation
     public void join() {
     	Lib.debug(dbgThread, "Joining to thread: " + toString());
 
@@ -298,6 +327,7 @@ public class KThread {
 		Lib.assertTrue(status == statusFinished);
 		Machine.interrupt().restore(intStatus);
     }
+    */
 
     /**
      * Create the idle thread. Whenever there are no threads ready to be run,
@@ -550,8 +580,12 @@ public class KThread {
     private String name = "(unnamed thread)";
     private Runnable target;
     private TCB tcb;
+    private ThreadQueue joinWaitQueue = null;
+    /*
+    // old implementation of join
     private KThread waitListHead = null;
     private KThread waitListNext = null;
+    */
 
     /**
      * Unique identifer for this thread. UthreadToWaitsed to deterministically compare
