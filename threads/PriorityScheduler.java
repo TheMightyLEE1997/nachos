@@ -466,11 +466,7 @@ public class PriorityScheduler extends Scheduler {
         id5.join();
         System.out.println("Priority Scheduling Test 3 Passed.\n");
 
-        //********* Test 4!
-        System.out.println("Priority Scheduling Test 4 (a complicated test with 5 locks, random joins, and random thread priority):");
-
-        System.out.println("Priority Scheduling Test 4 Passed.\n");
-    }
+   }
 
 
     /** 
