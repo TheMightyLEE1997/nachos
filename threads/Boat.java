@@ -279,9 +279,17 @@ public class Boat
                     }
                     row();
                 } else { // 1 seat, ride
-                    boolean isLast = currentIsland.getNChildren() == 2 && currentIsland.getNAdults() == 0;
-
                     currentIsland.nBoatSeats--;
+                    
+                    boolean isLast = currentIsland.getNChildren() == 2 && currentIsland.getNAdults() == 0;
+                    
+                    if (isLast) {
+                    	lock.release();
+                        ThreadedKernel.alarm.waitUntil(WAIT_TIME);
+                        lock.acquire();
+                        isLast = currentIsland.getNChildren() == 2 && currentIsland.getNAdults() == 0;
+                    }
+                    
                     childRowCond.wake();
                     childRideCond.sleep();
                     currentIsland.ridingPassager = false;
@@ -298,6 +306,8 @@ public class Boat
             }
         }
     }
+    
+    static final long WAIT_TIME = 5000;
     
     static Lock lock;
 
