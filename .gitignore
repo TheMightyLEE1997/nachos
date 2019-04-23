@@ -1,3 +1,6 @@
 *.class
 *.DS_Store
 *.swp
+*.o
+*.coff
+*.a

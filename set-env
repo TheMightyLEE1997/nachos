@@ -1,6 +1,7 @@
 #!/bin/sh
 
 NACHOS_HOME=$(dirname "$(realpath $BASH_SOURCE)")
+export ARCHDIR=$(realpath $NACHOS_HOME/../mips-x86.linux-xgcc)
 
 if ! echo "$PATH" | /bin/grep -Eq "(^|:)$NACHOS_HOME/bin($|:)"; then
 	PATH="$PATH:$NACHOS_HOME/bin"
