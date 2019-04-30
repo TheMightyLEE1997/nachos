@@ -342,6 +342,21 @@ public class UserProcess {
         return 0 <= fd && fd < MAX_N_FD && files[fd] != null;
     }
 
+    private String readFileName(int p_name) {
+        byte[] buf = new byte[MAX_FILE_NAME_LEN];
+        int count = readVirtualMemory(p_name, buf, 0, MAX_FILE_NAME_LEN);
+
+        int len = 0;
+        while (len < count && buf[len] != 0) {
+            len++;
+        }
+        if (len == count) {
+            return null;
+        }
+
+        return new String(buf, 0, len);
+    }
+
     /**
      * Handle the halt() system call. 
      */
@@ -533,4 +548,5 @@ public class UserProcess {
     private static final int pageSize = Processor.pageSize;
     private static final char dbgProcess = 'a';
     private static final int MAX_N_FD = 16;
+    private static final int MAX_FILE_NAME_LEN = 256;
 }
