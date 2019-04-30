@@ -357,6 +357,26 @@ public class UserProcess {
         return new String(buf, 0, len);
     }
 
+    private int fileOpen(int p_name, boolean create) {
+        String name = readFileName(p_name);
+        if (name == null) {
+            return -1;
+        }
+        
+        OpenFile file = ThreadedKernel.fileSystem.open(name, create);
+        if (file == null) {
+            return -1;
+        }
+
+        for (int fd = 0; fd < MAX_N_FD; fd++) {
+            if (files[fd] == null) {
+                files[fd] = file;
+                return fd;
+            }
+        }
+        return -1;
+    }
+
     /**
      * Handle the halt() system call. 
      */
@@ -385,12 +405,12 @@ public class UserProcess {
 		//return 0;
     }
     
-    private int handleCreate() {
-    	return 0;
+    private int handleCreate(int p_name) {
+    	return fileOpen(p_name, true);
     }
     
     private int handleOpen(int p_name) {
-        return 0;
+        return fileOpen(p_name, false);
     }
     
     private int handleRead(int fd, int p_buffer, int count) {
@@ -425,11 +445,21 @@ public class UserProcess {
             return -1;
         }
         files[fd].close();
+        files[fd] = null;
         return 0;
     }
     
-    private int handleUnlink() {
-    	return 0;
+    private int handleUnlink(int p_name) {
+    	String name = readFileName(p_name);
+        if (name == null) {
+            return -1;
+        }
+        
+        if (!ThreadedKernel.fileSystem.remove(name)) {
+            return -1;
+        }
+
+        return 0;
     }
 
 
@@ -480,7 +510,7 @@ public class UserProcess {
         case syscallExit:
             return handleExit();
 		case syscallCreate:
-			return handleCreate();
+			return handleCreate(a0);
 		case syscallOpen:
 			return handleOpen(a0);
 		case syscallRead:
@@ -490,7 +520,7 @@ public class UserProcess {
 		case syscallClose:
 			return handleClose(a0);
 		case syscallUnlink:
-			return handleUnlink();
+			return handleUnlink(a0);
 	
 		default:
 		    Lib.debug(dbgProcess, "Unknown syscall " + syscall);
