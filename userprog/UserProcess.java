@@ -557,6 +557,9 @@ public class UserProcess {
     	if (!checkFdExistence(fd)) {
             return -1;
         }
+        if (count < 0) {
+            return -1;
+        }
 
         byte[] buf = new byte[count];
         int len = files[fd].read(buf, 0, count);
@@ -570,6 +573,9 @@ public class UserProcess {
     
     private int handleWrite(int fd, int p_buffer, int count) {
     	if (!checkFdExistence(fd)) {
+            return -1;
+        }
+        if (count < 0) {
             return -1;
         }
 
