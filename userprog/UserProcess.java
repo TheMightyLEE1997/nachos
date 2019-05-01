@@ -147,8 +147,10 @@ public class UserProcess {
 	
 		byte[] memory = Machine.processor().getMemory();
 		
-		if (vaddr < 0 || vaddr >= numPages * pageSize)
+		if (vaddr < 0 || vaddr >= numPages * pageSize) {
+		    Lib.debug(dbgProcess, "\tInvalid virtual address: "+vaddr);
 		    return 0;
+        }
 	
 		int amount = Math.min(length, numPages * pageSize - vaddr);
 		int needAmount = amount;
@@ -157,6 +159,7 @@ public class UserProcess {
 		    if (needAmount > pageSize - shift) {
 		        System.arraycopy(memory, pageTable[i].ppn * pageSize + shift, data, offset, pageSize - shift);
 		        needAmount -= (pageSize - shift);
+		        offset += (pageSize - shift);
             }
             else {
 		        System.arraycopy(memory, pageTable[i].ppn * pageSize + shift, data, offset, needAmount);
@@ -165,6 +168,7 @@ public class UserProcess {
             }
             shift = 0;
         }
+		//Lib.debug(dbgProcess, "\tRead amount: "+amount);
 		return amount;
     }
 
@@ -233,7 +237,7 @@ public class UserProcess {
      * @return	<tt>true</tt> if the executable was successfully loaded.
      */
     private boolean load(String name, String[] args) {
-		Lib.debug(dbgProcess, "UserProcess.load(\"" + name + "\")");
+		Lib.debug(dbgProcess, "\tUserProcess.load(\"" + name + "\")");
 		
 		OpenFile executable = ThreadedKernel.fileSystem.open(name, false);
 		if (executable == null) {
@@ -306,6 +310,12 @@ public class UserProcess {
 		    Lib.assertTrue(writeVirtualMemory(stringOffset,new byte[] { 0 }) == 1);
 		    stringOffset += 1;
 		}
+		
+		for (int i = 0; i < numPages; i ++) {
+		    byte[] memory = Machine.processor().getMemory();
+		    int ppn = pageTable[i].ppn;
+		     Lib.debug(dbgProcess, "\tPhysical page number is "+ppn);
+        }
 	
 		return true;
     }
@@ -332,11 +342,11 @@ public class UserProcess {
 		Iterator<Integer> iter = ((UserKernel)Kernel.kernel).freeList.iterator();
 		while (iter.hasNext() && index < numPages) {
 		    pageTable[index] = new TranslationEntry(index, iter.next(), true, false, false, false);
+		    iter.remove();
 		    index ++;
         }
+        Lib.debug(dbgProcess, "\tAfter loading, # of free pages is "+((UserKernel)Kernel.kernel).freeList.size());
         Lib.assertTrue(pageTable[numPages-1].vpn == (numPages-1));
-        for (int i = 0; i < numPages; i ++)
-            ((UserKernel)Kernel.kernel).freeList.remove();
         ((UserKernel)Kernel.kernel).numFreePages -= numPages;
         ((UserKernel)Kernel.kernel).lock.release();
 
@@ -456,6 +466,7 @@ public class UserProcess {
         Iterator<UserProcess> iter = children.iterator();
         while (iter.hasNext())
             iter.next().parent = null;
+        Lib.debug(dbgProcess, "\tExiting: parent and chidren released.");
 
         for (int fd = 0; fd < MAX_N_FD; fd++) {
             if (files[fd] != null) {
@@ -463,39 +474,52 @@ public class UserProcess {
             }
         }
         unloadSections();
+        Lib.debug(dbgProcess, "\tExiting: file and pages released.");
 
         activeCounter --;
         if (activeCounter == 0)
             Kernel.kernel.terminate();
+        Lib.debug(dbgProcess, "\tExiting: active counter reset.");
 
         thread.finish();
+        Lib.debug(dbgProcess, "\tExiting: thread killed.");
 
 		Lib.assertNotReached("exit failed!");
 		return 0;
     }
 
     private int handleExec(int fileAddr, int argsNum, int argsAddr) {
-        String file = readVirtualMemoryString(fileAddr, pageSize);
+        String file = readVirtualMemoryString(fileAddr, MAX_FILE_NAME_LEN);
+        Lib.debug(dbgProcess, "\tfile name is "+file);
 
-        if (argsNum < 0)
+        if (argsNum < 0) {
             return -1;
+        }
         String[] args = new String[argsNum];
         byte[] bytes = new byte[4];
         for (int i = 0; i < argsNum; i ++) {
-            parent.readVirtualMemory(argsAddr, bytes);
+            readVirtualMemory(argsAddr, bytes);
             int addr = Lib.bytesToInt(bytes, 0);
-            args[i] = readVirtualMemoryString(addr, pageSize);
+            args[i] = readVirtualMemoryString(addr, MAX_ARG_LEN);
+		    Lib.debug(dbgProcess, "\tArg "+i+": "+args[i]);
             argsAddr += 4;
         }
 
-        UserProcess process = UserProcess.newUserProcess();
-        if (process.execute(file, args))
+        UserProcess process = new UserProcess();
+        if (process.execute(file, args)) {
+            this.children.add(process);
+            Lib.debug(dbgProcess, "\tExec(" + process.PID + ") returns.");
             return process.PID;
-        else 
+        }
+        else {
+            Lib.debug(dbgProcess, "\tExecution fail.");
             return -1;
+        }
     }
 
     private int handleJoin(int pid, int addr) {
+        Lib.debug(dbgProcess, "\tProcess " + PID + " waits for process " + pid);
+
         UserProcess process = null;
         Iterator<UserProcess> iter = children.iterator();
         while (iter.hasNext()) {
@@ -722,6 +746,7 @@ public class UserProcess {
     private static final char dbgProcess = 'a';
     private static final int MAX_N_FD = 16;
     private static final int MAX_FILE_NAME_LEN = 256;
+    private static final int MAX_ARG_LEN = 128;
     private static int PIDCounter = 0;
     private static int activeCounter = 0;
 }

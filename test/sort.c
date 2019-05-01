@@ -49,6 +49,6 @@ main()
   }
 
   /* if successful, return 0 */
-  printf("Sorting succeeded.\n");
+  printf("Sorting suceeded.\n");
   return 0;
 }
