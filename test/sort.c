@@ -42,10 +42,13 @@ main()
 
   /* and last, verify */
   for (i=0; i<SORTSIZE; i++) {
-    if (A(i) != i)
-      return 1;
+    if (A(i) != i) {
+        printf("Sorting failed.\n");
+        return 1;
+    }
   }
 
   /* if successful, return 0 */
+  printf("Sorting succeeded.\n");
   return 0;
 }
