@@ -33,6 +33,19 @@ public class LotteryScheduler extends PriorityScheduler {
     public LotteryScheduler() {
     }
     
+    public static final int priorityDefault = 1;
+    public static final int priorityMinimum = 0;
+    public static final int priorityMaximum = Integer.MAX_VALUE;
+    
+    @Override
+    public void setPriority(KThread thread, int priority) {
+        Lib.assertTrue(Machine.interrupt().disabled());
+
+        Lib.assertTrue(priority >= priorityMinimum &&
+                       priority <= priorityMaximum);
+
+        getThreadState(thread).setPriority(priority);
+    }
     /**
      * Allocate a new lottery thread queue.
      *
@@ -42,7 +55,80 @@ public class LotteryScheduler extends PriorityScheduler {
      * @return	a new lottery thread queue.
      */
     public ThreadQueue newThreadQueue(boolean transferPriority) {
-	// implement me
-	return null;
+	    // implement me
+	    return new LotteryQueue(transferPriority);;
+    }
+    
+    @Override
+    protected ThreadState getThreadState(KThread thread) {
+        if (thread.schedulingState == null)
+            thread.schedulingState = new LotteryThreadState(thread);
+
+        return (ThreadState) thread.schedulingState;
+    }
+
+    protected class LotteryQueue extends PriorityQueue {
+        LotteryQueue(boolean transferPriority) {
+            super(transferPriority);
+            this.entropy = new Random();
+        }
+        
+        @Override
+        public int getEffectivePriority() {
+            if (!this.transferPriority) {
+                return priorityMinimum;
+            } else if (this.priorityChange) {
+                // recalculate effective priorities
+                this.effectivePriority = priorityMinimum;
+                for (final ThreadState cur : this.threadsWaiting) {
+                    Lib.assertTrue(cur instanceof LotteryThreadState);
+                    this.effectivePriority += cur.getEffectivePriority();
+                }
+                this.priorityChange = false;
+            }
+            return effectivePriority;
+
+        }
+        @Override
+        public ThreadState pickNextThread() {
+            int totalTickets = this.getEffectivePriority();
+            int winningTicket;
+            if (totalTickets > 0) {
+                 winningTicket = entropy.nextInt(totalTickets);
+            } else {
+                winningTicket = 0;
+            }
+            for (final ThreadState thread : this.threadsWaiting) {
+                Lib.assertTrue(thread instanceof LotteryThreadState);
+                winningTicket -= thread.getEffectivePriority();
+                if (winningTicket <= 0) {
+                    return thread;
+                }
+            }
+
+            return null;
+        }
+
+        private final Random entropy;
+
+    }
+    protected class LotteryThreadState extends ThreadState {
+        public LotteryThreadState(KThread thread) {
+            super(thread);
+        }
+        @Override
+        public int getEffectivePriority() {
+            if (this.resourcesIHave.isEmpty()) {
+                return this.getPriority();
+            } else if (this.priorityChange) {
+                this.effectivePriority = this.getPriority();
+                for (final PriorityQueue pq : this.resourcesIHave) {
+                    Lib.assertTrue(pq instanceof LotteryQueue);
+                    this.effectivePriority += pq.getEffectivePriority();
+                }
+                this.priorityChange = false;
+            }
+            return this.effectivePriority;
+        }
     }
 }
