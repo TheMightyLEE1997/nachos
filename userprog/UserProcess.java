@@ -471,8 +471,11 @@ public class UserProcess {
         for (int fd = 0; fd < MAX_N_FD; fd++) {
             if (files[fd] != null) {
                 files[fd].close();
+                files[fd] = null;
             }
         }
+        coff.close();
+
         unloadSections();
         Lib.debug(dbgProcess, "\tExiting: file and pages released.");
 
